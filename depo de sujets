@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion de fichiers</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            flex-direction: column;
+        }
+        h1 {
+            color: #333;
+        }
+        .file-container {
+            width: 80%;
+            max-width: 600px;
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            max-height: 60vh;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #e7f3ff;
+            border-radius: 5px;
+        }
+        .file-item p {
+            margin: 0;
+            color: #333;
+            font-size: 0.9rem;
+            flex-grow: 1;
+            word-wrap: break-word;
+        }
+        .file-item button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .file-item button:hover {
+            background-color: #45a049;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .upload-label {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .upload-label:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Gestionnaire de fichiers</h1>
+    <label for="fileInput" class="upload-label">Ajouter des fichiers</label>
+    <input type="file" id="fileInput" multiple>
+
+    <div class="file-container" id="fileList">
+        <!-- Les fichiers seront affichés ici -->
+    </div>
+
+    <script>
+        let db;
+
+        // Ouvrir ou créer une base de données IndexedDB
+        const request = indexedDB.open("fileStorageDB", 1);
+
+        request.onupgradeneeded = function(event) {
+            db = event.target.result;
+            db.createObjectStore("files", { keyPath: "name" });
+        };
+
+        request.onsuccess = function(event) {
+            db = event.target.result;
+            loadFilesFromDB();
+        };
+
+        request.onerror = function(event) {
+            console.error("Erreur lors de l'ouverture de la base de données", event);
+        };
+
+        // Fonction pour charger les fichiers depuis IndexedDB
+        function loadFilesFromDB() {
+            const transaction = db.transaction(["files"], "readonly");
+            const objectStore = transaction.objectStore("files");
+            const request = objectStore.getAll();
+
+            request.onsuccess = function(event) {
+                const files = event.target.result;
+                displayFiles(files);
+            };
+        }
+
+        // Fonction pour afficher les fichiers dans la liste
+        function displayFiles(files) {
+            const fileList = document.getElementById("fileList");
+            fileList.innerHTML = ""; // Vider la liste
+
+            files.forEach(file => {
+                const fileItem = document.createElement("div");
+                fileItem.className = "file-item";
+                
+                const fileName = document.createElement("p");
+                fileName.textContent = file.name;
+
+                const downloadButton = document.createElement("button");
+                downloadButton.textContent = "Télécharger";
+                downloadButton.onclick = function() {
+                    downloadFile(file);
+                };
+
+                fileItem.appendChild(fileName);
+                fileItem.appendChild(downloadButton);
+                fileList.appendChild(fileItem);
+            });
+        }
+
+        // Fonction pour ajouter des fichiers à IndexedDB
+        document.getElementById("fileInput").addEventListener("change", function(event) {
+            const files = event.target.files;
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const fileData = event.target.result;
+
+                    const transaction = db.transaction(["files"], "readwrite");
+                    const objectStore = transaction.objectStore("files");
+                    objectStore.put({ name: file.name, data: fileData });
+
+                    transaction.oncomplete = function() {
+                        loadFilesFromDB();
+                    };
+                };
+                reader.readAsDataURL(file); // Convertir le fichier en base64
+            });
+        });
+
+        // Fonction pour télécharger un fichier
+        function downloadFile(file) {
+            const a = document.createElement("a");
+            a.href = file.data;
+            a.download = file.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+</body>
+</html>
